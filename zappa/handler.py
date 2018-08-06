@@ -403,7 +403,7 @@ class LambdaHandler(object):
             management.call_command(*event['manage'].split(' '))
             return {}
 
-        # This is an AWS-event triggered invokation.
+        # This is an AWS-event triggered invocation.
         elif event.get('Records', None):
 
             records = event.get('Records')
@@ -417,7 +417,22 @@ class LambdaHandler(object):
                 logger.error("Cannot find a function to process the triggered event.")
             return result
 
-        # this is an AWS-event triggered from Lex bot's intent
+        # This is a Kinesis Firehose event.
+        elif event.get('records', None):
+            records = event.get('records')
+            result = None
+            arn = event.get("sourceKinesisStreamArn")
+            whole_function = self.settings.AWS_EVENT_MAPPING.get(arn)
+            if whole_function:
+                app_function = self.import_module_and_get_function(whole_function)
+                result = self.run_function(app_function, event, context)
+                logger.debug(result)
+            else:
+                logger.error("Cannot find a function to process the triggered firehose event.")
+            return result
+
+
+        # This is an AWS-event triggered from Lex bot's intent.
         elif event.get('bot'):
             result = None
             whole_function = self.get_function_from_bot_intent_trigger(event)
@@ -429,7 +444,7 @@ class LambdaHandler(object):
                 logger.error("Cannot find a function to process the triggered event.")
             return result
 
-        # This is an API Gateway authorizer event
+        # This is an API Gateway authorizer event.
         elif event.get('type') == u'TOKEN':
             whole_function = self.settings.AUTHORIZER_FUNCTION
             if whole_function:
@@ -440,7 +455,7 @@ class LambdaHandler(object):
                 logger.error("Cannot find a function to process the authorization request.")
                 raise Exception('Unauthorized')
 
-        # This is an AWS Cognito Trigger Event
+        # This is an AWS Cognito Trigger Event.
         elif event.get('triggerSource', None):
             triggerSource = event.get('triggerSource')
             whole_function = self.get_function_for_cognito_trigger(triggerSource)
